@@ -59,33 +59,44 @@ int main(int, char**) {
 
     ImGui::StyleColorsDark();
     ImGuiIO& ioRef = ImGui::GetIO();
-    ioRef.Fonts->AddFontDefault();
+    // Try to load a nicer system font (Segoe UI). Fallback to default if not found.
+    ImFont* loadedFont = nullptr;
+    const char* sysFontPath = "C:\\Windows\\Fonts\\segoeui.ttf";
+    if (GetFileAttributesA(sysFontPath) != INVALID_FILE_ATTRIBUTES) {
+        loadedFont = ioRef.Fonts->AddFontFromFileTTF(sysFontPath, 16.0f);
+    }
+    if (!loadedFont) ioRef.Fonts->AddFontDefault();
+    // Slightly scale fonts for clearer rendering on modern displays
+    ioRef.FontGlobalScale = 1.05f;
     auto& style = ImGui::GetStyle();
-    style.WindowRounding = 8.0f;
-    style.FrameRounding = 6.0f;
-    style.TabRounding = 6.0f;
-    style.WindowPadding = ImVec2(10, 10);
-    style.FramePadding = ImVec2(8, 5);
-    style.ItemSpacing = ImVec2(8, 6);
-    style.ScrollbarRounding = 6.0f;
-    style.Colors[ImGuiCol_Text] = ImVec4(0.92f, 0.96f, 0.92f, 1.00f);
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.04f, 0.06f, 0.05f, 0.96f);
-    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.045f, 0.08f, 0.06f, 0.95f);
-    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.06f, 0.12f, 0.08f, 0.98f);
-    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.08f, 0.10f, 0.08f, 0.85f);
-    style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.18f, 0.28f, 0.18f, 0.95f);
-    style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.22f, 0.34f, 0.22f, 1.00f);
-    style.Colors[ImGuiCol_Button] = ImVec4(0.07f, 0.10f, 0.08f, 0.90f);
-    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.22f, 0.36f, 0.22f, 0.95f);
-    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.28f, 0.42f, 0.28f, 1.00f);
-    style.Colors[ImGuiCol_Header] = ImVec4(0.06f, 0.10f, 0.07f, 0.88f);
-    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.20f, 0.34f, 0.20f, 0.95f);
-    style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.26f, 0.40f, 0.26f, 1.00f);
-    style.Colors[ImGuiCol_Tab] = ImVec4(0.05f, 0.08f, 0.06f, 0.90f);
-    style.Colors[ImGuiCol_TabHovered] = ImVec4(0.20f, 0.34f, 0.20f, 0.95f);
-    style.Colors[ImGuiCol_TabActive] = ImVec4(0.24f, 0.38f, 0.24f, 1.00f);
-    style.Colors[ImGuiCol_Border] = ImVec4(0.08f, 0.12f, 0.08f, 0.6f);
-    style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0, 0, 0, 0.35f);
+    // Enable anti-aliasing for lines/fills to reduce pixelated appearance
+    style.AntiAliasedLines = true;
+    style.AntiAliasedFill = true;
+    style.WindowRounding = 10.0f;
+    style.FrameRounding = 8.0f;
+    style.TabRounding = 8.0f;
+    style.WindowPadding = ImVec2(12, 12);
+    style.FramePadding = ImVec2(10, 6);
+    style.ItemSpacing = ImVec2(10, 8);
+    style.ScrollbarRounding = 8.0f;
+    style.Colors[ImGuiCol_Text] = ImVec4(0.94f, 0.97f, 0.94f, 1.00f);
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.03f, 0.05f, 0.04f, 0.98f);
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.045f, 0.08f, 0.06f, 0.96f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.07f, 0.14f, 0.09f, 0.99f);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.09f, 0.12f, 0.09f, 0.88f);
+    style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.22f, 0.34f, 0.22f, 0.98f);
+    style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.26f, 0.38f, 0.26f, 1.00f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.08f, 0.12f, 0.09f, 0.92f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.26f, 0.40f, 0.26f, 0.98f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.30f, 0.45f, 0.30f, 1.00f);
+    style.Colors[ImGuiCol_Header] = ImVec4(0.07f, 0.12f, 0.09f, 0.86f);
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.22f, 0.36f, 0.22f, 0.98f);
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.28f, 0.44f, 0.28f, 1.00f);
+    style.Colors[ImGuiCol_Tab] = ImVec4(0.06f, 0.10f, 0.08f, 0.92f);
+    style.Colors[ImGuiCol_TabHovered] = ImVec4(0.26f, 0.40f, 0.26f, 0.98f);
+    style.Colors[ImGuiCol_TabActive] = ImVec4(0.30f, 0.46f, 0.30f, 1.00f);
+    style.Colors[ImGuiCol_Border] = ImVec4(0.09f, 0.13f, 0.09f, 0.65f);
+    style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0, 0, 0, 0.30f);
 
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX9_Init(g_device);

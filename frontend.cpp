@@ -1,6 +1,9 @@
 #include "frontend.h"
 #include "imgui.h"
 #include <cstring>
+#include <vector>
+#include <string>
+#include <cstdio>
 #include "backend.h"
 
 void RenderInterface() {
@@ -17,7 +20,8 @@ void RenderInterface() {
     dl->AddText(ImVec2(wpos.x + 14, wpos.y + 8), accentCol, "CastleWare");
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + topBarH - 8);
 
-    if (ImGui::BeginTabBar("MainTabBar", ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_FittingPolicyScroll)) {
+    ImGuiTabBarFlags tabFlags = ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_FittingPolicyResizeDown;
+    if (ImGui::BeginTabBar("MainTabBar", tabFlags)) {
         if (ImGui::BeginTabItem("Cheats")) {
             if (hProc && modBase) {
                 uint32_t cubitsVal = 0, recubesVal = 0;
@@ -51,7 +55,7 @@ void RenderInterface() {
             if (ImGui::SmallButton("Bind##3")) listeningFor = 3;
             ImGui::Text("Bound: %s", KeyToString(bindInfJump).c_str());
 
-            if (ImGui::Checkbox("Hide Name (Client)", &hideName)) {
+            if (ImGui::Checkbox("Hide Name (Client Side)", &hideName)) {
                 uint8_t v = hideName ? 1u : 0u;
                 if (hProc && playerPtr) WriteByteAt(hProc, playerPtr, hideNameOffset, v);
             }
@@ -61,6 +65,16 @@ void RenderInterface() {
 
             ImGui::Separator();
 
+            if (hProc && playerPtr) {
+                ImGui::Text("https://github.com/catchysmiles/Castleware");
+            }
+            else { ImGui::TextColored({ 0.8f, 0.5f, 0.5f, 1.0f }, "Game not attached"); }
+
+            ImGui::EndTabItem();
+
+        }
+
+        if (ImGui::BeginTabItem("World")) {
             if (hProc && playerPtr) {
                 float currentX = 0.0f, currentZ = 0.0f, currentY = 0.0f;
                 ReadFloatAt(hProc, playerPtr, posWestEastOffsets[0], currentX);
@@ -73,35 +87,72 @@ void RenderInterface() {
                     lastPlayerPtrForPos = playerPtr;
                 }
 
-                ImGui::Text("Current X: %.3f", currentX);
-                ImGui::Text("Current Z: %.3f", currentZ);
-                ImGui::Text("Current Y: %.3f", currentY);
-
-                ImGui::InputFloat("X (W/E)", &playerPosX, 0.1f, 1.0f, "%.3f");
-                ImGui::SameLine();
+                ImGui::AlignTextToFramePadding(); ImGui::Text("X:"); ImGui::SameLine();
+                char curXLabel[64]; std::snprintf(curXLabel, sizeof(curXLabel), "%.3f##curX", currentX);
+                if (ImGui::SmallButton(curXLabel)) { playerPosX = currentX; }
+                ImGui::SameLine(); ImGui::PushItemWidth(140);
+                ImGui::InputFloat("##XInput", &playerPosX, 0.1f, 1.0f, "%.3f"); ImGui::PopItemWidth(); ImGui::SameLine();
                 if (ImGui::SmallButton("Apply X")) {
                     size_t cnt = sizeof(posWestEastOffsets) / sizeof(posWestEastOffsets[0]);
                     for (size_t i = 0; i < cnt; ++i) { uintptr_t off = posWestEastOffsets[i]; if (off) WriteFloatAt(hProc, playerPtr, off, playerPosX); }
                     ReadFloatAt(hProc, playerPtr, posWestEastOffsets[0], currentX); playerPosX = currentX;
                 }
 
-                ImGui::InputFloat("Z (N/S)", &playerPosZ, 0.1f, 1.0f, "%.3f");
-                ImGui::SameLine();
+                ImGui::AlignTextToFramePadding(); ImGui::Text("Z:"); ImGui::SameLine();
+                char curZLabel[64]; std::snprintf(curZLabel, sizeof(curZLabel), "%.3f##curZ", currentZ);
+                if (ImGui::SmallButton(curZLabel)) { playerPosZ = currentZ; }
+                ImGui::SameLine(); ImGui::PushItemWidth(140);
+                ImGui::InputFloat("##ZInput", &playerPosZ, 0.1f, 1.0f, "%.3f"); ImGui::PopItemWidth(); ImGui::SameLine();
                 if (ImGui::SmallButton("Apply Z")) {
                     size_t cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
                     for (size_t i = 0; i < cnt; ++i) { uintptr_t off = posNorthSouthOffsets[i]; if (off) WriteFloatAt(hProc, playerPtr, off, playerPosZ); }
                     ReadFloatAt(hProc, playerPtr, posNorthSouthOffsets[0], currentZ); playerPosZ = currentZ;
                 }
 
-                ImGui::InputFloat("Y (U/D)", &playerPosY, 0.1f, 1.0f, "%.3f");
-                ImGui::SameLine();
+                ImGui::AlignTextToFramePadding(); ImGui::Text("Y:"); ImGui::SameLine();
+                char curYLabel[64]; std::snprintf(curYLabel, sizeof(curYLabel), "%.3f##curY", currentY);
+                if (ImGui::SmallButton(curYLabel)) { playerPosY = currentY; }
+                ImGui::SameLine(); ImGui::PushItemWidth(140);
+                ImGui::InputFloat("##YInput", &playerPosY, 0.1f, 1.0f, "%.3f"); ImGui::PopItemWidth(); ImGui::SameLine();
                 if (ImGui::SmallButton("Apply Y")) {
                     size_t cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
                     for (size_t i = 0; i < cnt; ++i) { uintptr_t off = posHeightOffsets[i]; if (off) WriteFloatAt(hProc, playerPtr, off, playerPosY); }
                     ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], currentY); playerPosY = currentY;
                 }
+
+                // Saved locations UI
+                ImGui::Separator();
+                struct SavedLocation { std::string name; float x, z, y; };
+                static std::vector<SavedLocation> savedLocations;
+                static char saveNameBuf[64] = {};
+                ImGui::Text("Saved Locations:");
+                ImGui::InputText("Name", saveNameBuf, sizeof(saveNameBuf)); ImGui::SameLine();
+                if (ImGui::Button("Save")) {
+                    if (saveNameBuf[0] != '\0') {
+                        savedLocations.push_back({ std::string(saveNameBuf), currentX, currentZ, currentY });
+                        saveNameBuf[0] = '\0';
+                    }
+                }
+
+                for (int i = 0; i < (int)savedLocations.size(); ++i) {
+                    auto &loc = savedLocations[i];
+                    ImGui::Text("%s: %.3f, %.3f, %.3f", loc.name.c_str(), loc.x, loc.z, loc.y);
+                    ImGui::SameLine();
+                    char telLabel[32]; std::snprintf(telLabel, sizeof(telLabel), "Teleport##%d", i);
+                    if (ImGui::SmallButton(telLabel)) {
+                        size_t cnt = sizeof(posWestEastOffsets) / sizeof(posWestEastOffsets[0]);
+                        for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posWestEastOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, loc.x); }
+                        cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
+                        for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posNorthSouthOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, loc.z); }
+                        cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
+                        for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posHeightOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, loc.y); }
+                    }
+                    ImGui::SameLine();
+                    char delLabel[32]; std::snprintf(delLabel, sizeof(delLabel), "Delete##%d", i);
+                    if (ImGui::SmallButton(delLabel)) { savedLocations.erase(savedLocations.begin() + i); --i; }
+                }
             }
-            else { ImGui::Separator(); ImGui::TextColored({ 0.8f, 0.5f, 0.5f, 1.0f }, "Game not attached"); }
+            else { ImGui::TextColored({ 0.8f, 0.5f, 0.5f, 1.0f }, "Game not attached"); }
 
             ImGui::EndTabItem();
         }
