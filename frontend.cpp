@@ -73,7 +73,7 @@ void RenderInterface() {
                 ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], currentY);
                 if (lastPlayerPtrForPos != playerPtr) { playerPosX = currentX; playerPosZ = currentZ; playerPosY = currentY; lastPlayerPtrForPos = playerPtr; }
                 static bool flyEnabled = false;
-                static float flySpeed = 300.0f;
+                static float flySpeed = 700.0f;
                 static bool prevFly = false;
                 static float flyBaseX = 0.0f, flyBaseZ = 0.0f, flyBaseY = 0.0f;
                 static float flyOffX = 0.0f, flyOffZ = 0.0f, flyOffY = 0.0f;
