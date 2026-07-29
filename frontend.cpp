@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <cstdio>
+#include <cmath>
 #include "backend.h"
 
 void RenderInterface() {
@@ -66,7 +67,53 @@ void RenderInterface() {
             ImGui::Separator();
 
             if (hProc && playerPtr) {
-                ImGui::Text("https://github.com/catchysmiles/Castleware");
+                float currentX = 0.0f, currentZ = 0.0f, currentY = 0.0f;
+                ReadFloatAt(hProc, playerPtr, posWestEastOffsets[0], currentX);
+                ReadFloatAt(hProc, playerPtr, posNorthSouthOffsets[0], currentZ);
+                ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], currentY);
+                if (lastPlayerPtrForPos != playerPtr) { playerPosX = currentX; playerPosZ = currentZ; playerPosY = currentY; lastPlayerPtrForPos = playerPtr; }
+                static bool flyEnabled = false;
+                static float flySpeed = 300.0f;
+                static bool prevFly = false;
+                static float flyBaseX = 0.0f, flyBaseZ = 0.0f, flyBaseY = 0.0f;
+                static float flyOffX = 0.0f, flyOffZ = 0.0f, flyOffY = 0.0f;
+                ImGui::Checkbox("Fly", &flyEnabled); ImGui::SameLine(); ImGui::InputFloat("Fly Speed", &flySpeed, 0.1f, 1.0f, "%.2f");
+                // When enabling fly capture the current position as the base and zero offsets.
+                if (flyEnabled && !prevFly) {
+                    flyBaseX = currentX; flyBaseZ = currentZ; flyBaseY = currentY;
+                    flyOffX = flyOffZ = flyOffY = 0.0f;
+                }
+                // Effective position to use while flying (base + accumulated offsets).
+                float effX = flyEnabled ? (flyBaseX + flyOffX) : currentX;
+                float effZ = flyEnabled ? (flyBaseZ + flyOffZ) : currentZ;
+                float effY = flyEnabled ? (flyBaseY + flyOffY) : currentY;
+                if (flyEnabled) {
+                    float dt = ImGui::GetIO().DeltaTime;
+                    float step = flySpeed * dt;
+                    float ddx = 0.0f, ddz = 0.0f, ddy = 0.0f;
+                    if (GetAsyncKeyState('W') & 0x8000) ddz += step;
+                    if (GetAsyncKeyState('S') & 0x8000) ddz -= step;
+                    if (GetAsyncKeyState('A') & 0x8000) ddx += step;
+                    if (GetAsyncKeyState('D') & 0x8000) ddx -= step;
+                    if (GetAsyncKeyState(VK_SPACE) & 0x8000) ddy -= step;
+                    if (GetAsyncKeyState(VK_CONTROL) & 0x8000) ddy += step;
+                    // Accumulate offsets if there is input.
+                    if (ddx != 0.0f || ddz != 0.0f || ddy != 0.0f) {
+                        flyOffX += ddx; flyOffZ += ddz; flyOffY += ddy;
+                    }
+                    // Always write the effective frozen/flying position so the game doesn't move the player while flying.
+                    float nx = flyBaseX + flyOffX;
+                    float nz = flyBaseZ + flyOffZ;
+                    float ny = flyBaseY + flyOffY;
+                    size_t cnt = sizeof(posWestEastOffsets) / sizeof(posWestEastOffsets[0]);
+                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posWestEastOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nx); }
+                    cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
+                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posNorthSouthOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nz); }
+                    cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
+                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posHeightOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, ny); }
+                    playerPosX = nx; playerPosZ = nz; playerPosY = ny;
+                }
+                prevFly = flyEnabled;
             }
             else { ImGui::TextColored({ 0.8f, 0.5f, 0.5f, 1.0f }, "Game not attached"); }
 
@@ -119,6 +166,35 @@ void RenderInterface() {
                     for (size_t i = 0; i < cnt; ++i) { uintptr_t off = posHeightOffsets[i]; if (off) WriteFloatAt(hProc, playerPtr, off, playerPosY); }
                     ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], currentY); playerPosY = currentY;
                 }
+
+                static bool orbitEnabled = false;
+                static float orbitRadius = 2.0f;
+                static float orbitSpeed = 1.0f;
+                static float orbitVertAmp = 0.5f;
+                static float orbitAngle = 0.0f;
+                static int orbitDir = 1;
+                ImGui::Separator();
+                ImGui::InputFloat("Radius", &orbitRadius, 0.1f, 1.0f, "%.2f"); ImGui::SameLine();
+                ImGui::InputFloat("Speed", &orbitSpeed, 0.1f, 1.0f, "%.2f"); ImGui::SameLine();
+                ImGui::InputFloat("VertAmp", &orbitVertAmp, 0.1f, 1.0f, "%.2f");
+                ImGui::RadioButton("Add", &orbitDir, 1); ImGui::SameLine(); ImGui::RadioButton("Subtract", &orbitDir, -1);
+                if (ImGui::Button(orbitEnabled ? "Stop Orbit" : "Start Orbit")) orbitEnabled = !orbitEnabled;
+                if (orbitEnabled) {
+                    float dt = ImGui::GetIO().DeltaTime;
+                    orbitAngle += orbitSpeed * dt * (orbitDir == 1 ? 1.0f : -1.0f);
+                    float nx = currentX + std::cos(orbitAngle) * orbitRadius;
+                    float nz = currentZ + std::sin(orbitAngle) * orbitRadius;
+                    float ny = currentY + std::sin(orbitAngle * 2.0f) * orbitVertAmp;
+                    size_t cnt = sizeof(posWestEastOffsets) / sizeof(posWestEastOffsets[0]);
+                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posWestEastOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nx); }
+                    cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
+                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posNorthSouthOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nz); }
+                    cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
+                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posHeightOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, ny); }
+                    playerPosX = nx; playerPosZ = nz; playerPosY = ny;
+                }
+
+
 
                 // Saved locations UI
                 ImGui::Separator();
