@@ -292,7 +292,6 @@ void ApplyCheats() {
         WriteU32(playerPtr, playerSizeOffset, targetSize);
         if (infJump) WriteU32(playerPtr, jumpPotentialOffset, JUMP_INF);
     }
-    // Game speed freeze: read pointer at module + base offset, then write float at pointer + inner offset
     if (gameSpeedFreeze) {
         uint32_t p = 0;
         if (ReadU32(modBase, gameSpeedPointerBaseOffset, p) && p) {

@@ -96,6 +96,8 @@ void RenderInterface() {
                 static bool prevFly = false;
                 static float flyBaseX = 0.0f, flyBaseZ = 0.0f, flyBaseY = 0.0f;
                 static float flyOffX = 0.0f, flyOffZ = 0.0f, flyOffY = 0.0f;
+                static float flyStartupTimer = 0.0f;
+                static const float flyStartupDelay = 0.15f; // Otherwise you teleport into the void because it keeps your position between realms
                 ImGui::Checkbox("Fly", &flyEnabled); ImGui::SameLine(); ImGui::InputFloat("Fly Speed", &flySpeed, 0.1f, 1.0f, "%.2f");
                 if (ImGui::SmallButton("Bind##Fly")) listeningFor = 6;
                 ImGui::SameLine(); ImGui::Text("Bound: %s", KeyToString(bindFly).c_str());
@@ -116,10 +118,10 @@ void RenderInterface() {
                     float dt = ImGui::GetIO().DeltaTime;
                     float step = flySpeed * dt;
                     float ddx = 0.0f, ddz = 0.0f, ddy = 0.0f;
-                    if (GetAsyncKeyState('W') & 0x8000) ddz += step;
-                    if (GetAsyncKeyState('S') & 0x8000) ddz -= step;
-                    if (GetAsyncKeyState('A') & 0x8000) ddx += step;
-                    if (GetAsyncKeyState('D') & 0x8000) ddx -= step;
+                    if (GetAsyncKeyState('W') & 0x8000) ddz -= step;
+                    if (GetAsyncKeyState('S') & 0x8000) ddz += step;
+                    if (GetAsyncKeyState('A') & 0x8000) ddx -= step;
+                    if (GetAsyncKeyState('D') & 0x8000) ddx += step;
                     if (GetAsyncKeyState(VK_SPACE) & 0x8000) ddy -= step;
                     if (GetAsyncKeyState(VK_CONTROL) & 0x8000) ddy += step;
                     if (ddx != 0.0f || ddz != 0.0f || ddy != 0.0f) {
