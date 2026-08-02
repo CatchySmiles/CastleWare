@@ -64,12 +64,9 @@ void RenderInterface() {
             if (ImGui::SmallButton("Bind##HideName")) listeningFor = 5;
             ImGui::Text("Bound: %s", KeyToString(bindHideName).c_str());
 
-            // Game Speed control: freeze + slider + reset
             ImGui::Separator();
-            // detect toggle changes so we can reset value when disabling
             bool gsChanged = ImGui::Checkbox("Tick Speed", &gameSpeedFreeze);
             if (gsChanged && !gameSpeedFreeze) {
-                // user just disabled freeze -> reset to default and write it to the game
                 gameSpeedValue = 100.0f;
                 if (hProc) {
                     uint32_t p = 0;
@@ -80,7 +77,6 @@ void RenderInterface() {
             ImGui::PushItemWidth(180);
             if (ImGui::SliderFloat("##GameSpeed", &gameSpeedValue, 1.0f, 500.0f, "%.1f")) {
                 if (gameSpeedFreeze) {
-                    // immediate write when changing while frozen
                     uint32_t p = 0;
                     if (ReadU32(modBase, gameSpeedPointerBaseOffset, p) && p) WriteFloatAt(hProc, p, gameSpeedPointerInnerOffset, gameSpeedValue);
                 }
@@ -101,11 +97,8 @@ void RenderInterface() {
                 static float flyBaseX = 0.0f, flyBaseZ = 0.0f, flyBaseY = 0.0f;
                 static float flyOffX = 0.0f, flyOffZ = 0.0f, flyOffY = 0.0f;
                 ImGui::Checkbox("Fly", &flyEnabled); ImGui::SameLine(); ImGui::InputFloat("Fly Speed", &flySpeed, 0.1f, 1.0f, "%.2f");
-                // Bind button placed below the fly controls, next to the bound key text
                 if (ImGui::SmallButton("Bind##Fly")) listeningFor = 6;
                 ImGui::SameLine(); ImGui::Text("Bound: %s", KeyToString(bindFly).c_str());
-                // When enabling fly capture the current position as the base and zero offsets.
-                // Read the live position from the target process to avoid using a stale saved/world position.
                 if (flyEnabled && !prevFly) {
                     float rx = currentX, rz = currentZ, ry = currentY;
                     if (hProc && playerPtr) {
@@ -116,7 +109,6 @@ void RenderInterface() {
                     flyBaseX = rx; flyBaseZ = rz; flyBaseY = ry;
                     flyOffX = flyOffZ = flyOffY = 0.0f;
                 }
-                // Effective position to use while flying (base + accumulated offsets).
                 float effX = flyEnabled ? (flyBaseX + flyOffX) : currentX;
                 float effZ = flyEnabled ? (flyBaseZ + flyOffZ) : currentZ;
                 float effY = flyEnabled ? (flyBaseY + flyOffY) : currentY;
@@ -130,11 +122,9 @@ void RenderInterface() {
                     if (GetAsyncKeyState('D') & 0x8000) ddx -= step;
                     if (GetAsyncKeyState(VK_SPACE) & 0x8000) ddy -= step;
                     if (GetAsyncKeyState(VK_CONTROL) & 0x8000) ddy += step;
-                    // Accumulate offsets if there is input.
                     if (ddx != 0.0f || ddz != 0.0f || ddy != 0.0f) {
                         flyOffX += ddx; flyOffZ += ddz; flyOffY += ddy;
                     }
-                    // Always write the effective frozen/flying position so the game doesn't move the player while flying.
                     float nx = flyBaseX + flyOffX;
                     float nz = flyBaseZ + flyOffZ;
                     float ny = flyBaseY + flyOffY;
