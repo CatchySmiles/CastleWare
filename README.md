@@ -2,7 +2,7 @@
 Cubic Castles External Cheat,
 Open-Source & Free for 650+ Days! 
  #
-<img width="309" height="264" alt="image" src="https://github.com/user-attachments/assets/c1117cce-5210-48b2-b262-a3da2f8a83e5" />
+<img width="280" height="264" alt="image" src="https://github.com/user-attachments/assets/c1117cce-5210-48b2-b262-a3da2f8a83e5" />
 
 <img width="311" height="263" alt="image" src="https://github.com/user-attachments/assets/c7510ff8-e2fb-44bd-95eb-9c34b90640ce" />
 
