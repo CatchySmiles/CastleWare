@@ -11,6 +11,19 @@ DWORD pid = 0;
 uintptr_t modBase = 0;
 uintptr_t playerPtr = 0;
 
+// Size in bytes of pointers in the remote process (4 or 8). Default to host pointer size until we detect remote.
+static size_t g_remotePtrSize = sizeof(uintptr_t);
+// Read a pointer-sized value from the remote process at absolute address 'addr'.
+// Reads g_remotePtrSize bytes into a 64-bit temporary then casts to uintptr_t.
+static bool ReadRemotePointerAtAddress(uintptr_t addr, uintptr_t& out) {
+    if (!hProc || !addr) return false;
+    uint64_t tmp = 0;
+    SIZE_T toRead = g_remotePtrSize;
+    if (!ReadProcessMemory(hProc, (LPCVOID)addr, &tmp, toRead, nullptr)) return false;
+    out = (uintptr_t)tmp;
+    return true;
+}
+
 bool noclip = false;
 bool noCollision = false;
 bool infJump = false;
@@ -73,11 +86,17 @@ bool Attach() {
     if (!hProc) return false;
     modBase = GetModuleBase(pid, targetProcessName);
     if (!modBase) { CloseHandle(hProc); hProc = nullptr; return false; }
-    uint32_t ptr = 0;
-    if (!ReadProcessMemory(hProc, (LPCVOID)(modBase + moduleBaseOffset), &ptr, 4, nullptr)) {
+    // Determine remote pointer size: use IsWow64Process to detect 32-bit processes on WOW64.
+    // If the remote process is a WOW64 process, pointers are 4 bytes. Otherwise use host pointer size.
+    BOOL isWow64Remote = FALSE;
+    if (IsWow64Process(hProc, &isWow64Remote) && isWow64Remote) g_remotePtrSize = 4;
+    else g_remotePtrSize = sizeof(uintptr_t);
+
+    uintptr_t p = 0;
+    if (!ReadRemotePointerAtAddress(modBase + moduleBaseOffset, p)) {
         CloseHandle(hProc); hProc = nullptr; return false;
     }
-    playerPtr = ptr;
+    playerPtr = p;
     return true;
 }
 
@@ -92,8 +111,8 @@ void TryAttachOrRefresh() {
         uintptr_t mb = GetModuleBase(pid, targetProcessName);
         if (!mb) { Detach(); return; }
         if (mb != modBase) modBase = mb;
-        uint32_t p = 0;
-        if (ReadProcessMemory(hProc, (LPCVOID)(modBase + moduleBaseOffset), &p, 4, nullptr))
+        uintptr_t p = 0;
+        if (ReadRemotePointerAtAddress(modBase + moduleBaseOffset, p))
             playerPtr = p;
         else
             Detach();

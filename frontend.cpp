@@ -98,6 +98,7 @@ void RenderInterface() {
                 static float flyOffX = 0.0f, flyOffZ = 0.0f, flyOffY = 0.0f;
                 static float flyStartupTimer = 0.0f;
                 static const float flyStartupDelay = 0.15f; // Otherwise you teleport into the void because it keeps your position between realms
+                static uintptr_t lastPlayerPtrForFly = 0;
                 ImGui::Checkbox("Fly", &flyEnabled); ImGui::SameLine(); ImGui::InputFloat("Fly Speed", &flySpeed, 0.1f, 1.0f, "%.2f");
                 if (ImGui::SmallButton("Bind##Fly")) listeningFor = 6;
                 ImGui::SameLine(); ImGui::Text("Bound: %s", KeyToString(bindFly).c_str());
@@ -110,12 +111,18 @@ void RenderInterface() {
                     }
                     flyBaseX = rx; flyBaseZ = rz; flyBaseY = ry;
                     flyOffX = flyOffZ = flyOffY = 0.0f;
+                    // reset startup timer so we don't immediately write unstable positions
+                    flyStartupTimer = 0.0f;
+                    // track which player pointer these base coordinates belong to
+                    lastPlayerPtrForFly = playerPtr;
                 }
                 float effX = flyEnabled ? (flyBaseX + flyOffX) : currentX;
                 float effZ = flyEnabled ? (flyBaseZ + flyOffZ) : currentZ;
                 float effY = flyEnabled ? (flyBaseY + flyOffY) : currentY;
                 if (flyEnabled) {
                     float dt = ImGui::GetIO().DeltaTime;
+                    // advance startup timer; we wait a short moment to avoid teleporting
+                    flyStartupTimer += dt;
                     float step = flySpeed * dt;
                     float ddx = 0.0f, ddz = 0.0f, ddy = 0.0f;
                     if (GetAsyncKeyState('W') & 0x8000) ddz -= step;
@@ -124,19 +131,88 @@ void RenderInterface() {
                     if (GetAsyncKeyState('D') & 0x8000) ddx += step;
                     if (GetAsyncKeyState(VK_SPACE) & 0x8000) ddy -= step;
                     if (GetAsyncKeyState(VK_CONTROL) & 0x8000) ddy += step;
-                    if (ddx != 0.0f || ddz != 0.0f || ddy != 0.0f) {
-                        flyOffX += ddx; flyOffZ += ddz; flyOffY += ddy;
+
+                    // Normalize horizontal movement so diagonal isn't faster than straight movement
+                    float horizLen = std::sqrt(ddx*ddx + ddz*ddz);
+                    if (horizLen > 0.0f) {
+                        float maxHoriz = step;
+                        if (horizLen > maxHoriz) {
+                            float s = maxHoriz / horizLen;
+                            ddx *= s; ddz *= s;
+                        }
                     }
-                    float nx = flyBaseX + flyOffX;
-                    float nz = flyBaseZ + flyOffZ;
-                    float ny = flyBaseY + flyOffY;
-                    size_t cnt = sizeof(posWestEastOffsets) / sizeof(posWestEastOffsets[0]);
-                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posWestEastOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nx); }
-                    cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
-                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posNorthSouthOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nz); }
-                    cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
-                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posHeightOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, ny); }
-                    playerPosX = nx; playerPosZ = nz; playerPosY = ny;
+
+                    // Clamp per-frame increments to avoid runaway values (safety)
+                    const float MAX_STEP = 20000.0f; // very large but prevents NaN/infinite growth
+                    if (ddx > MAX_STEP) ddx = MAX_STEP; else if (ddx < -MAX_STEP) ddx = -MAX_STEP;
+                    if (ddz > MAX_STEP) ddz = MAX_STEP; else if (ddz < -MAX_STEP) ddz = -MAX_STEP;
+                    if (ddy > MAX_STEP) ddy = MAX_STEP; else if (ddy < -MAX_STEP) ddy = -MAX_STEP;
+
+                    // If the player pointer changed while flying, resync base to avoid huge jumps
+                    if (playerPtr != lastPlayerPtrForFly) {
+                        float curX = 0.0f, curZ = 0.0f, curY = 0.0f;
+                        if (ReadFloatAt(hProc, playerPtr, posWestEastOffsets[0], curX) &&
+                            ReadFloatAt(hProc, playerPtr, posNorthSouthOffsets[0], curZ) &&
+                            ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], curY)) {
+                            flyBaseX = curX; flyBaseZ = curZ; flyBaseY = curY;
+                            flyOffX = flyOffZ = flyOffY = 0.0f;
+                            lastPlayerPtrForFly = playerPtr;
+                        }
+                        flyStartupTimer = 0.0f; // give a fresh delay after resync
+                    }
+
+                    if (flyStartupTimer >= flyStartupDelay) {
+                        if (ddx != 0.0f || ddz != 0.0f || ddy != 0.0f) {
+                            flyOffX += ddx; flyOffZ += ddz; flyOffY += ddy;
+                        }
+                        float nx = flyBaseX + flyOffX;
+                        float nz = flyBaseZ + flyOffZ;
+                        float ny = flyBaseY + flyOffY;
+                        // sanity checks: avoid writing NaN/inf or extremely large values
+                        if (!std::isfinite(nx) || !std::isfinite(nz) || !std::isfinite(ny)) {
+                            // abandon this write and resync next frame
+                            flyOffX = flyOffZ = flyOffY = 0.0f;
+                            flyStartupTimer = 0.0f;
+                        } else {
+                            bool allOk = true;
+                        size_t cnt = sizeof(posWestEastOffsets) / sizeof(posWestEastOffsets[0]);
+                            for (size_t j = 0; j < cnt; ++j) {
+                                uintptr_t off = posWestEastOffsets[j];
+                                if (off) { if (!WriteFloatAt(hProc, playerPtr, off, nx)) { allOk = false; break; } }
+                            }
+                            if (allOk) {
+                                cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
+                                for (size_t j = 0; j < cnt; ++j) {
+                                    uintptr_t off = posNorthSouthOffsets[j];
+                                    if (off) { if (!WriteFloatAt(hProc, playerPtr, off, nz)) { allOk = false; break; } }
+                                }
+                            }
+                            if (allOk) {
+                                cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
+                                for (size_t j = 0; j < cnt; ++j) {
+                                    uintptr_t off = posHeightOffsets[j];
+                                    if (off) { if (!WriteFloatAt(hProc, playerPtr, off, ny)) { allOk = false; break; } }
+                                }
+                            }
+                            if (allOk) {
+                                playerPosX = nx; playerPosZ = nz; playerPosY = ny;
+                            } else {
+                                // failed to write (process might have changed); resync next frame
+                                flyStartupTimer = 0.0f;
+                                flyOffX = flyOffZ = flyOffY = 0.0f;
+                            }
+                        }
+                    }
+                    else {
+                        // During startup delay, keep base synced to current game position to avoid jumps.
+                        float curX = 0.0f, curZ = 0.0f, curY = 0.0f;
+                        ReadFloatAt(hProc, playerPtr, posWestEastOffsets[0], curX);
+                        ReadFloatAt(hProc, playerPtr, posNorthSouthOffsets[0], curZ);
+                        ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], curY);
+                        flyBaseX = curX; flyBaseZ = curZ; flyBaseY = curY;
+                        flyOffX = flyOffZ = flyOffY = 0.0f;
+                        playerPosX = curX; playerPosZ = curZ; playerPosY = curY;
+                    }
                 }
                 prevFly = flyEnabled;
             }
@@ -198,6 +274,7 @@ void RenderInterface() {
                 static float orbitVertAmp = 0.5f;
                 static float orbitAngle = 0.0f;
                 static int orbitDir = 1;
+                static uintptr_t lastPlayerPtrForOrbit = 0;
                 ImGui::Separator();
                 ImGui::InputFloat("Radius", &orbitRadius, 0.1f, 1.0f, "%.2f"); ImGui::SameLine();
                 ImGui::InputFloat("Speed", &orbitSpeed, 0.1f, 1.0f, "%.2f"); ImGui::SameLine();
@@ -210,13 +287,42 @@ void RenderInterface() {
                     float nx = currentX + std::cos(orbitAngle) * orbitRadius;
                     float nz = currentZ + std::sin(orbitAngle) * orbitRadius;
                     float ny = currentY + std::sin(orbitAngle * 2.0f) * orbitVertAmp;
+
+                    // resync if player pointer changed while orbiting
+                    if (playerPtr != lastPlayerPtrForOrbit) {
+                        lastPlayerPtrForOrbit = playerPtr;
+                        orbitAngle = 0.0f; // restart angle so orbit isn't offset unpredictably
+                    }
+
+                    // sanity checks - only proceed if values are finite
+                    if (std::isfinite(nx) && std::isfinite(nz) && std::isfinite(ny)) {
+                        bool allOk = true;
                     size_t cnt = sizeof(posWestEastOffsets) / sizeof(posWestEastOffsets[0]);
-                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posWestEastOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nx); }
-                    cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
-                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posNorthSouthOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, nz); }
-                    cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
-                    for (size_t j = 0; j < cnt; ++j) { uintptr_t off = posHeightOffsets[j]; if (off) WriteFloatAt(hProc, playerPtr, off, ny); }
-                    playerPosX = nx; playerPosZ = nz; playerPosY = ny;
+                    for (size_t j = 0; j < cnt; ++j) {
+                        uintptr_t off = posWestEastOffsets[j];
+                        if (off) { if (!WriteFloatAt(hProc, playerPtr, off, nx)) { allOk = false; break; } }
+                    }
+                    if (allOk) {
+                        cnt = sizeof(posNorthSouthOffsets) / sizeof(posNorthSouthOffsets[0]);
+                        for (size_t j = 0; j < cnt; ++j) {
+                            uintptr_t off = posNorthSouthOffsets[j];
+                            if (off) { if (!WriteFloatAt(hProc, playerPtr, off, nz)) { allOk = false; break; } }
+                        }
+                    }
+                        if (allOk) {
+                            cnt = sizeof(posHeightOffsets) / sizeof(posHeightOffsets[0]);
+                            for (size_t j = 0; j < cnt; ++j) {
+                                uintptr_t off = posHeightOffsets[j];
+                                if (off) { if (!WriteFloatAt(hProc, playerPtr, off, ny)) { allOk = false; break; } }
+                            }
+                        }
+                        if (allOk) {
+                            playerPosX = nx; playerPosZ = nz; playerPosY = ny;
+                        } else {
+                            // if writes failed, stop orbit briefly and resync next frame
+                            lastPlayerPtrForOrbit = 0;
+                        }
+                    }
                 }
 
 
