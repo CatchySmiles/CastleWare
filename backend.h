@@ -31,7 +31,10 @@ extern KeyBind bindNoColl;
 extern KeyBind bindInfJump;
 extern KeyBind bindToggleUI;
 extern KeyBind bindHideName;
+extern KeyBind bindFly;
 extern int listeningFor;
+
+extern bool flyEnabled;
 
 extern float playerPosX;
 extern float playerPosY;
@@ -41,6 +44,9 @@ extern uintptr_t lastPlayerPtrForPos;
 extern std::vector<Account> accounts;
 extern int selectedAcc;
 extern std::string statusMsg;
+
+extern bool gameSpeedFreeze;
+extern float gameSpeedValue;
 
 DWORD GetProcId(const std::wstring& name);
 uintptr_t GetModuleBase(DWORD pid, const std::wstring& modName);

@@ -16,12 +16,16 @@ bool noCollision = false;
 bool infJump = false;
 bool showMenu = true;
 bool hideName = false;
+bool flyEnabled = false;
+bool gameSpeedFreeze = false;
+float gameSpeedValue = 100.0f;
 
 KeyBind bindNoclip;
 KeyBind bindNoColl;
 KeyBind bindInfJump;
 KeyBind bindToggleUI{ VK_INSERT };
 KeyBind bindHideName;
+KeyBind bindFly;
 int listeningFor = 0;
 
 float playerPosX = 0.0f;
@@ -159,6 +163,7 @@ void HandleHotkeys() {
                 else if (listeningFor == 3) bindInfJump = newBind;
                 else if (listeningFor == 4) bindToggleUI = newBind;
                 else if (listeningFor == 5) bindHideName = newBind;
+                    else if (listeningFor == 6) bindFly = newBind;
                 listeningFor = 0;
                 return;
             }
@@ -166,8 +171,8 @@ void HandleHotkeys() {
         return;
     }
 
-    static bool prevState[5] = { false, false, false, false, false };
-    bool now[5] = { IsPressed(bindNoclip), IsPressed(bindNoColl), IsPressed(bindInfJump), IsPressed(bindToggleUI), IsPressed(bindHideName) };
+    static bool prevState[6] = { false, false, false, false, false, false };
+    bool now[6] = { IsPressed(bindNoclip), IsPressed(bindNoColl), IsPressed(bindInfJump), IsPressed(bindToggleUI), IsPressed(bindHideName), IsPressed(bindFly) };
 
     if (now[0] && !prevState[0]) noclip = !noclip;
     if (now[1] && !prevState[1]) noCollision = !noCollision;
@@ -178,6 +183,7 @@ void HandleHotkeys() {
         uint8_t v = hideName ? 1u : 0u;
         WriteByteAt(hProc, playerPtr, hideNameOffset, v);
     }
+    if (now[5] && !prevState[5]) flyEnabled = !flyEnabled;
 
     memcpy(prevState, now, sizeof(prevState));
 }
@@ -285,5 +291,12 @@ void ApplyCheats() {
         uint32_t targetSize = noCollision ? PSZ_NOCOLL : (noclip ? PSZ_TINY : PSZ_DEFAULT);
         WriteU32(playerPtr, playerSizeOffset, targetSize);
         if (infJump) WriteU32(playerPtr, jumpPotentialOffset, JUMP_INF);
+    }
+    // Game speed freeze: read pointer at module + base offset, then write float at pointer + inner offset
+    if (gameSpeedFreeze) {
+        uint32_t p = 0;
+        if (ReadU32(modBase, gameSpeedPointerBaseOffset, p) && p) {
+            WriteFloatAt(hProc, p, gameSpeedPointerInnerOffset, gameSpeedValue);
+        }
     }
 }

@@ -64,6 +64,30 @@ void RenderInterface() {
             if (ImGui::SmallButton("Bind##HideName")) listeningFor = 5;
             ImGui::Text("Bound: %s", KeyToString(bindHideName).c_str());
 
+            // Game Speed control: freeze + slider + reset
+            ImGui::Separator();
+            // detect toggle changes so we can reset value when disabling
+            bool gsChanged = ImGui::Checkbox("Tick Speed", &gameSpeedFreeze);
+            if (gsChanged && !gameSpeedFreeze) {
+                // user just disabled freeze -> reset to default and write it to the game
+                gameSpeedValue = 100.0f;
+                if (hProc) {
+                    uint32_t p = 0;
+                    if (ReadU32(modBase, gameSpeedPointerBaseOffset, p) && p) WriteFloatAt(hProc, p, gameSpeedPointerInnerOffset, gameSpeedValue);
+                }
+            }
+            ImGui::SameLine();
+            ImGui::PushItemWidth(180);
+            if (ImGui::SliderFloat("##GameSpeed", &gameSpeedValue, 1.0f, 500.0f, "%.1f")) {
+                if (gameSpeedFreeze) {
+                    // immediate write when changing while frozen
+                    uint32_t p = 0;
+                    if (ReadU32(modBase, gameSpeedPointerBaseOffset, p) && p) WriteFloatAt(hProc, p, gameSpeedPointerInnerOffset, gameSpeedValue);
+                }
+            }
+            ImGui::PopItemWidth(); ImGui::SameLine();
+            if (ImGui::Button("Reset")) { gameSpeedValue = 100.0f; if (gameSpeedFreeze) { uint32_t p = 0; if (ReadU32(modBase, gameSpeedPointerBaseOffset, p) && p) WriteFloatAt(hProc, p, gameSpeedPointerInnerOffset, gameSpeedValue); } }
+
             ImGui::Separator();
 
             if (hProc && playerPtr) {
@@ -72,15 +96,24 @@ void RenderInterface() {
                 ReadFloatAt(hProc, playerPtr, posNorthSouthOffsets[0], currentZ);
                 ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], currentY);
                 if (lastPlayerPtrForPos != playerPtr) { playerPosX = currentX; playerPosZ = currentZ; playerPosY = currentY; lastPlayerPtrForPos = playerPtr; }
-                static bool flyEnabled = false;
                 static float flySpeed = 700.0f;
                 static bool prevFly = false;
                 static float flyBaseX = 0.0f, flyBaseZ = 0.0f, flyBaseY = 0.0f;
                 static float flyOffX = 0.0f, flyOffZ = 0.0f, flyOffY = 0.0f;
                 ImGui::Checkbox("Fly", &flyEnabled); ImGui::SameLine(); ImGui::InputFloat("Fly Speed", &flySpeed, 0.1f, 1.0f, "%.2f");
+                // Bind button placed below the fly controls, next to the bound key text
+                if (ImGui::SmallButton("Bind##Fly")) listeningFor = 6;
+                ImGui::SameLine(); ImGui::Text("Bound: %s", KeyToString(bindFly).c_str());
                 // When enabling fly capture the current position as the base and zero offsets.
+                // Read the live position from the target process to avoid using a stale saved/world position.
                 if (flyEnabled && !prevFly) {
-                    flyBaseX = currentX; flyBaseZ = currentZ; flyBaseY = currentY;
+                    float rx = currentX, rz = currentZ, ry = currentY;
+                    if (hProc && playerPtr) {
+                        ReadFloatAt(hProc, playerPtr, posWestEastOffsets[0], rx);
+                        ReadFloatAt(hProc, playerPtr, posNorthSouthOffsets[0], rz);
+                        ReadFloatAt(hProc, playerPtr, posHeightOffsets[0], ry);
+                    }
+                    flyBaseX = rx; flyBaseZ = rz; flyBaseY = ry;
                     flyOffX = flyOffZ = flyOffY = 0.0f;
                 }
                 // Effective position to use while flying (base + accumulated offsets).
@@ -267,8 +300,10 @@ void RenderInterface() {
         ImGui::SetNextWindowPos(ImVec2(displaySize.x * 0.5f, displaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowSize({ 320,0 });
         if (ImGui::Begin("Bind key", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize)) {
-            const char* names[] = { "", "Noclip", "No Collision", "Inf Jump", "UI Toggle" };
-            ImGui::Text("Press key for %s (ESC = cancel)", names[listeningFor]);
+            const char* names[] = { "", "Noclip", "No Collision", "Inf Jump", "UI Toggle", "Hide Name", "Fly" };
+            const char* which = "";
+            if (listeningFor >= 0 && listeningFor < (int)(sizeof(names) / sizeof(names[0]))) which = names[listeningFor];
+            ImGui::Text("Press key for %s (ESC = cancel)", which);
             ImGui::End();
         }
     }

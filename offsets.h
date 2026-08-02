@@ -37,6 +37,13 @@ static constexpr uintptr_t cubitsBaseOffset = 0x002F9A30;
 static constexpr uintptr_t cubitsOffset = 0x4DA8; // Cubits
 static constexpr uintptr_t recubesOffset = 0x4DCC; // Recubes
 
+// Game speed pointer: Cubic.exe+301EB8 -> read pointer, then +0xBC4 is the float value
+static constexpr uintptr_t gameSpeedPointerBaseOffset = 0x301EB8; // module + this -> pointer
+static constexpr uintptr_t gameSpeedPointerInnerOffset = 0xBC4; // pointer + this -> float
+// Absolute address used in the provided CheatTable (RealAddress="004040DC").
+// (Removed per request)
+// Note: the game speed float lives inside the game module at module + 0x40DC
+
 // Generic helpers to read/write floats at a base + offset using a process handle.
 inline bool ReadFloatAt(HANDLE hProcess, uintptr_t base, uintptr_t off, float& out) {
     if (!hProcess || !base) return false;
