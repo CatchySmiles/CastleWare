@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <cstdint>
 #include <string>
 #include <windows.h>
@@ -10,7 +10,6 @@ static constexpr uintptr_t moduleBaseOffset = 0x002F9A28;
 static constexpr uintptr_t playerSizeOffset = 0x4AC;
 static constexpr uintptr_t jumpPotentialOffset = 0x478;
 
-// Player position and realm size offsets (relative to player base pointer read from module+moduleBaseOffset)
 // West/East (X) and North/South (Z) position floats — there are multiple entries each. Use the first for display,
 // write to all entries when changing position so the game picks up the new coordinates.
 static constexpr uintptr_t posWestEastOffsets[] = {
@@ -26,8 +25,6 @@ static constexpr uintptr_t posHeightOffsets[] = {
     0xC8, 0xC4, 0xC0, 0xBC, 0xB8, 0xB4, 0xB0, 0xAC, 0xA8, 0xA4, 0xA0, 0x9C
 };
 
-// Map max sizes (floats). Note: north/south has extra padding +82.5, west/east padding +12.5
-// Map max sizes removed - only position offsets are needed
 
 // Client-side hide name byte offset (0 = visible, 1 = hidden)
 static constexpr uintptr_t hideNameOffset = 0x1224;
@@ -38,11 +35,9 @@ static constexpr uintptr_t cubitsOffset = 0x4DA8; // Cubits
 static constexpr uintptr_t recubesOffset = 0x4DCC; // Recubes
 
 // Game speed pointer: Cubic.exe+301EB8 -> read pointer, then +0xBC4 is the float value
-static constexpr uintptr_t gameSpeedPointerBaseOffset = 0x301EB8; // module + this -> pointer
+static constexpr uintptr_t gameSpeedPointerBaseOffset = 0x301E04; // module + this -> pointer 
 static constexpr uintptr_t gameSpeedPointerInnerOffset = 0xBC4; // pointer + this -> float
-// Absolute address used in the provided CheatTable (RealAddress="004040DC").
-// (Removed per request)
-// Note: the game speed float lives inside the game module at module + 0x40DC
+
 
 // Generic helpers to read/write floats at a base + offset using a process handle.
 inline bool ReadFloatAt(HANDLE hProcess, uintptr_t base, uintptr_t off, float& out) {
