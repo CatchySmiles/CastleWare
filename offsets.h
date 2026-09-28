@@ -5,8 +5,8 @@
 
 static const std::wstring targetProcessName = L"Cubic.exe";
 
-// Player base pointer: "Cubic.exe"+002F9A28
-static constexpr uintptr_t moduleBaseOffset = 0x002F9A28;
+// Player base: "Cubic.exe"+00301A28
+static constexpr uintptr_t moduleBaseOffset = 0x00301A20; // Typically this wil be updated every steam update, but the offsets are usually stable. Check this first.
 static constexpr uintptr_t playerSizeOffset = 0x4AC;
 static constexpr uintptr_t jumpPotentialOffset = 0x478;
 
@@ -29,14 +29,14 @@ static constexpr uintptr_t posHeightOffsets[] = {
 // Client-side hide name byte offset (0 = visible, 1 = hidden)
 static constexpr uintptr_t hideNameOffset = 0x1224;
 
-// In-game currency offsets (relative to module + cubitsBaseOffset)
-static constexpr uintptr_t cubitsBaseOffset = 0x002F9A30;
+// Other base 
+static constexpr uintptr_t cubitsBaseOffset = 0x00301A28; // Typically this wil be updated every steam update, but the offsets are usually stable. Check this first.
 static constexpr uintptr_t cubitsOffset = 0x4DA8; // Cubits
 static constexpr uintptr_t recubesOffset = 0x4DCC; // Recubes
 
-// Game speed pointer: Cubic.exe+301EB8 -> read pointer, then +0xBC4 is the float value
-static constexpr uintptr_t gameSpeedPointerBaseOffset = 0x301E04; // module + this -> pointer 
-static constexpr uintptr_t gameSpeedPointerInnerOffset = 0xBC4; // pointer + this -> float
+// Tick speed
+static constexpr uintptr_t gameSpeedPointerBaseOffset = 0x309EBC; // Typically this wil be updated every steam update, but the offsets are usually stable. Check this first.
+static constexpr uintptr_t gameSpeedPointerInnerOffset = 0xBC4; // 
 
 
 // Generic helpers to read/write floats at a base + offset using a process handle.
